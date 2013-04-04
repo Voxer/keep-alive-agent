@@ -35,7 +35,7 @@ describe('KeepAliveAgent', function()
 	{
 		server = http.createServer(function(request, response)
 		{
-			response.end("pong")
+			response.end("pong");
 		});
 		server.on('listening', done);
 		server.listen(serverConfig.port);
@@ -157,7 +157,7 @@ describe('KeepAliveAgent', function()
 				assert(Array.isArray(agent.idleSockets[name]), 'expected idle sockets list for ' + name + ' to be an array');
 				assert.equal(agent.idleSockets[name].length, 1, 'expected idle sockets list to contain exactly 1 item');
 				var socket = agent.idleSockets[name][0];
-				assert.equal(socket._requestCount, 1, 'expected socket request count to be 1')
+				assert.equal(socket._requestCount, 1, 'expected socket request count to be 1');
 
 				makeTestRequest(agent, function(response)
 				{
@@ -168,6 +168,45 @@ describe('KeepAliveAgent', function()
 						done();
 					});
 					response.connection.destroy();
+				});
+			});
+		});
+	});
+
+	it('closes the socket after maxReqsPerSocket requests', function(done)
+	{
+		var agent = new KeepAliveAgent({maxReqsPerSocket: 2});
+		var name = serverConfig.hostname + ':' + serverConfig.port;
+
+		makeTestRequest(agent, function(response)
+		{
+			response.on("end", function()
+			{
+				process.nextTick(function()
+				{
+					var socket = agent.idleSockets[name][0];
+					makeTestRequest(agent, function(response)
+					{
+						response.on("end", function()
+						{
+							process.nextTick(function()
+							{
+								assert.equal(agent.idleSockets[name][0], socket);
+								makeTestRequest(agent, function(response)
+								{
+									response.on("end", function()
+									{
+										process.nextTick(function()
+										{
+											assert(agent.idleSockets[name][0] !== socket);
+											assert(socket.destroyed);
+											done();
+										});
+									});
+								});
+							});
+						});
+					});
 				});
 			});
 		});
@@ -217,7 +256,7 @@ describe('KeepAliveAgent.Secure', function()
 				assert(Array.isArray(agent.idleSockets[name]), 'expected idle sockets list for ' + name + ' to be an array');
 				assert.equal(agent.idleSockets[name].length, 1, 'expected idle sockets list to contain exactly 1 item');
 				var socket = agent.idleSockets[name][0];
-				assert.equal(socket._requestCount, 1, 'expected socket request count to be 1')
+				assert.equal(socket._requestCount, 1, 'expected socket request count to be 1');
 
 				https.get(getOptions, function(response)
 				{
@@ -249,5 +288,4 @@ describe('KeepAliveAgent.Secure', function()
 		assert.equal(socket, null);
 		assert.equal(agent.idleSockets[name].length, 0);
 	});
-
 });

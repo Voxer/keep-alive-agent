@@ -14,6 +14,8 @@ function KeepAliveAgent(options)
 	// Keys are host:port names, values are lists of sockets.
 	this.idleSockets = {};
 
+	this.maxReqsPerSocket = options.maxReqsPerSocket;
+
 	// Replace the 'free' listener set up by the default node Agent above.
 	this.removeAllListeners('free');
 	this.on('free', KeepAliveAgent.prototype.freeHandler.bind(this));
@@ -35,7 +37,7 @@ KeepAliveAgent.prototype.freeHandler = function(socket, host, port, localAddress
 	var name = buildNameKey(host, port, localAddress);
 
 	// If the socket is still useful, return it to the idle pool.
-	if (this.isSocketUsable(socket))
+	if (this.isSocketUsable(socket) && !this.expireSocket(socket))
 	{
 		socket._requestCount = socket._requestCount ? socket._requestCount + 1 : 1;
 
@@ -88,6 +90,15 @@ KeepAliveAgent.prototype.nextIdleSocket = function(name)
 KeepAliveAgent.prototype.isSocketUsable = function(socket)
 {
 	return !socket.destroyed;
+};
+
+KeepAliveAgent.prototype.expireSocket = function(socket)
+{
+	var isExpired = this.maxReqsPerSocket && socket._requestCount >= this.maxReqsPerSocket;
+	if (isExpired) {
+		socket.destroy();
+	}
+	return isExpired;
 };
 
 
